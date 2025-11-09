@@ -1,0 +1,109 @@
+<script>
+(function () {
+  const ENDPOINT = "https://horoshop-telegram-webhook-production.up.railway.app/api/telegram-webhook";
+  const SECRET = "#3kMt3Iy39s*iMXdocj3pombAki6kg&B";
+  
+  console.log("🚀 Webhook скрипт завантажено!");
+  
+  const once = (key) => {
+    try {
+      if (sessionStorage.getItem(key)) return false;
+      sessionStorage.setItem(key, "1");
+      return true;
+    } catch { return true; }
+  };
+
+  function send(payload) {
+    try {
+      console.log("📤 Відправляю на сервер:", payload);
+      fetch(ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Secret": SECRET
+        },
+        body: JSON.stringify(payload),
+        keepalive: true
+      })
+      .then(r => {
+        console.log("✅ Відповідь сервера:", r.status);
+        return r.json();
+      })
+      .catch(e => console.warn("❌ Помилка відправки:", e));
+    } catch (e) { 
+      console.error("💥 Помилка send():", e);
+    }
+  }
+
+  function fromDataLayer() {
+    console.log("🔍 Шукаю покупки в dataLayer...");
+    const dl = (window.dataLayer || []).slice().reverse();
+    console.log("📊 dataLayer має", dl.length, "елементів");
+    
+    const hit = dl.find(x => {
+      const isPurchase = x?.event === "purchase" || x?.ecommerce?.purchase;
+      if (isPurchase) {
+        console.log("✅ Знайшов подію покупки:", x);
+      }
+      return isPurchase;
+    });
+    
+    if (!hit) {
+      console.log("❌ Покупку не знайдено в dataLayer");
+      return;
+    }
+
+    const ec = hit.ecommerce?.purchase || hit.ecommerce || {};
+    const id = ec.actionField?.id || ec.transaction_id || "";
+    const revenue = ec.actionField?.revenue || ec.value || ec.revenue || "";
+    const currency = ec.currencyCode || ec.currency || "UAH";
+    const items = (ec.products || ec.items || []).map(p => ({
+      title: p.name || p.item_name || "Товар",
+      quantity: p.quantity || p.item_quantity || 1,
+      price: p.price || p.item_price || ""
+    }));
+
+    console.log("📦 Замовлення ID:", id, "Сума:", revenue);
+    
+    if (id && once("order_"+id)) {
+      console.log("🚀 Відправляю замовлення...");
+      send({
+        event: "order_created_client",
+        order: { id, number: id, total: revenue, currency, items }
+      });
+    } else {
+      console.log("⚠️  ID не знайдений або замовлення вже відправлено");
+    }
+  }
+
+  document.addEventListener("submit", function (e) {
+    const f = e.target;
+    if (!f || !(f instanceof HTMLFormElement)) return;
+
+    const idn = (f.id + " " + f.name + " " + (f.getAttribute("action") || "")).toLowerCase();
+    const isCallback = /(callback|call|phone|fastorder|quickorder|дзвінок)/i.test(idn);
+
+    if (isCallback) {
+      const fd = new FormData(f);
+      const name = fd.get("name") || fd.get("client_name") || "";
+      const phone = fd.get("phone") || fd.get("client_phone") || "";
+      const email = fd.get("email") || "";
+
+      if (phone) {
+        send({
+          event: "callback_request_client",
+          name: name || "—",
+          phone: phone,
+          email: email || "—",
+          page: location.href
+        });
+      }
+    }
+  }, true);
+
+  window.addEventListener("load", () => {
+    console.log("⏱️  window.load запущено, через 800ms буду шукати покупки");
+    setTimeout(fromDataLayer, 800);
+  });
+})();
+</script>
