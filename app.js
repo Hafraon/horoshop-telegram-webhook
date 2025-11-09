@@ -3,7 +3,6 @@ const app = express();
 
 const SECRET = process.env.SECRET || "default-secret";
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-// ✅ КІЛЬКА CHAT_ID - розділяємо комою
 const CHAT_IDS = (process.env.CHAT_ID || "").split(",").map(id => id.trim()).filter(id => id);
 const PORT = process.env.PORT || 3000;
 
@@ -36,6 +35,45 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// Функція для форматування URL в посилання
+function formatPageUrl(url) {
+  if (!url) return "—";
+  
+  // Якщо це просто path (починається з /)
+  if (url.startsWith("/")) {
+    return `https://milwest.net${url}`;
+  }
+  
+  // Якщо це уже повна URL
+  if (url.startsWith("http")) {
+    return url;
+  }
+  
+  return `https://milwest.net/${url}`;
+}
+
+// Функція для екстракції імені сторінки з URL
+function getPageName(url) {
+  if (!url) return "Головна";
+  
+  // Якщо це просто /
+  if (url === "/" || url === "") {
+    return "🏠 Головна сторінка";
+  }
+  
+  // Витягуємо останню частину URL і розшифровуємо
+  const parts = url.split("/").filter(p => p);
+  const lastPart = parts[parts.length - 1];
+  
+  // Замінюємо дефіси на пробіли і капіталізуємо
+  let pageName = lastPart
+    .replace(/[-_]/g, " ")
+    .replace(/\?.*/, "") // видаляємо query параметри
+    .substring(0, 60); // обмежуємо довжину
+  
+  return pageName || "Товар";
 }
 
 // Функція для відправки в Telegram
@@ -93,11 +131,18 @@ app.post("/api/telegram-webhook", async (req, res) => {
       });
     }
   } else if (payload.event === "callback_request_client") {
+    // 📱 CALLBACK ФОРМА
+    const pageUrl = payload.page || "/";
+    const pageName = getPageName(pageUrl);
+    const fullPageUrl = formatPageUrl(pageUrl);
+
     message = `📞 <b>ЗАПИТ НА ДЗВІНОК</b>\n\n`;
-    message += `👤 Ім'я: ${escapeHtml(payload.name || "—")}\n`;
-    message += `📱 Телефон: <code>${escapeHtml(payload.phone || "—")}</code>\n`;
-    message += `📧 Email: ${escapeHtml(payload.email || "—")}\n`;
-    message += `🌐 Сторінка: ${escapeHtml(payload.page || "—")}`;
+    message += `👤 <b>Ім'я:</b> ${escapeHtml(payload.name || "—")}\n`;
+    message += `📱 <b>Телефон:</b> <code>${escapeHtml(payload.phone || "—")}</code>\n`;
+    message += `📧 <b>Email:</b> ${escapeHtml(payload.email || "—")}\n`;
+    message += `\n📍 <b>Сторінка:</b>\n`;
+    message += `   ${escapeHtml(pageName)}\n`;
+    message += `   <a href="${escapeHtml(fullPageUrl)}">Відкрити сторінку</a>`;
   } else if (payload.event === "order_success_page_hit") {
     const od = payload.orderData || {};
     message = `✅ <b>ЗАМОВЛЕННЯ УСПІШНО ОФОРМЛЕНО</b>\n\n`;
