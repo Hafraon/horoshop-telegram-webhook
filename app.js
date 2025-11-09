@@ -97,14 +97,19 @@ app.post("/api/telegram-webhook", async (req, res) => {
       message += `  Оплата: ${od.paymentMethod}\n`;
     }
     
-    // Товари
+    // ТОВАРИ - красиво!
     if (od.items && od.items.length > 0) {
       message += `\n*🛍️  Товари:*\n`;
       od.items.forEach((item, idx) => {
-        const name = (item.name || "Товар").substring(0, 60);
-        const price = item.price || "—";
-        message += `  ${idx + 1}. ${name}\n     ${price}\n`;
+        const name = (item.name || "Товар").substring(0, 70);
+        const pricePerUnit = item.pricePerUnit || "—";
+        const quantity = item.quantity || "1";
+        const total = item.total || "—";
+        
+        message += `\n${idx + 1}. ${name}\n`;
+        message += `   💰 ${pricePerUnit} × ${quantity} = ${total}`;
       });
+      message += `\n`;
     }
     
     // Сума
