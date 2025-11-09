@@ -60,10 +60,59 @@ app.post("/api/telegram-webhook", async (req, res) => {
     message += `📧 Email: ${payload.email || "—"}\n`;
     message += `🌐 Сторінка: ${payload.page || "—"}`;
   } else if (payload.event === "order_success_page_hit") {
+    const od = payload.orderData || {};
     message = `✅ *ЗАМОВЛЕННЯ УСПІШНО ОФОРМЛЕНО*\n\n`;
-    message += `🌐 URL: [посилання](${payload.url})\n`;
-    message += `📄 Сторінка: ${payload.pageTitle || "Сторінка успіху"}\n`;
-    message += `📨 Джерело: ${payload.ref || "прямо"}`;
+    
+    // Дата
+    if (od.date) {
+      message += `📅 *Дата:* ${od.date}\n`;
+    }
+    
+    // Номер замовлення
+    if (od.orderNumber) {
+      message += `🔔 *Замовлення №* \`${od.orderNumber}\`\n\n`;
+    }
+    
+    // Дані користувача
+    message += `*👤 Замовник:*\n`;
+    if (od.customerName) {
+      message += `  Ім'я: ${od.customerName}\n`;
+    }
+    if (od.phone) {
+      message += `  📱 Телефон: \`${od.phone}\`\n`;
+    }
+    if (od.city) {
+      message += `  📍 Місто: ${od.city}\n`;
+    }
+    if (od.address) {
+      message += `  🏠 Адреса: ${od.address}\n`;
+    }
+    
+    // Доставка та оплата
+    message += `\n*📦 Деталі замовлення:*\n`;
+    if (od.deliveryMethod) {
+      message += `  Доставка: ${od.deliveryMethod}\n`;
+    }
+    if (od.paymentMethod) {
+      message += `  Оплата: ${od.paymentMethod}\n`;
+    }
+    
+    // Товари
+    if (od.items && od.items.length > 0) {
+      message += `\n*🛍️  Товари:*\n`;
+      od.items.forEach((item, idx) => {
+        const name = (item.name || "Товар").substring(0, 60);
+        const price = item.price || "—";
+        message += `  ${idx + 1}. ${name}\n     ${price}\n`;
+      });
+    }
+    
+    // Сума
+    if (od.total) {
+      message += `\n*💰 Всього: ${od.total}*\n`;
+    }
+    
+    message += `\n🌐 [Див. замовлення](${payload.url})`;
   } else {
     message = `📌 *${payload.event || "подія"}*\n\`\`\`\n${JSON.stringify(payload, null, 2).substring(0, 300)}\n\`\`\``;
   }
