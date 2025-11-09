@@ -27,6 +27,17 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Telegram webhook сервер працює", chatIds: CHAT_IDS });
 });
 
+// Функція для екранування HTML символів
+function escapeHtml(text) {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Функція для відправки в Telegram
 async function sendToTelegram(chatId, message) {
   const response = await fetch(
@@ -37,7 +48,7 @@ async function sendToTelegram(chatId, message) {
       body: JSON.stringify({
         chat_id: chatId,
         text: message,
-        parse_mode: "Markdown"
+        parse_mode: "HTML"
       })
     }
   );
@@ -67,72 +78,72 @@ app.post("/api/telegram-webhook", async (req, res) => {
 
   if (payload.event === "order_created_client") {
     const { order } = payload;
-    message = `🛒 *НОВЕ ЗАМОВЛЕННЯ*\n\n`;
-    message += `🔔 ID: \`${order.id || order.number || "N/A"}\`\n`;
-    message += `💵 Сума: *${order.total || "—"} ${order.currency || "UAH"}*\n`;
+    message = `🛒 <b>НОВЕ ЗАМОВЛЕННЯ</b>\n\n`;
+    message += `🔔 ID: <code>${escapeHtml(order.id || order.number || "N/A")}</code>\n`;
+    message += `💵 Сума: <b>${escapeHtml(order.total || "—")} ${escapeHtml(order.currency || "UAH")}</b>\n`;
     message += `📦 Товарів: ${order.items?.length || 0}\n`;
     
     if (order.items && order.items.length > 0) {
-      message += `\n*Склад:*\n`;
+      message += `\n<b>Склад:</b>\n`;
       order.items.forEach((item, idx) => {
-        const title = (item.title || item.name || "Товар").substring(0, 50);
+        const title = escapeHtml((item.title || item.name || "Товар").substring(0, 50));
         const qty = item.quantity || 1;
-        const price = item.price || "—";
+        const price = escapeHtml(item.price || "—");
         message += `${idx + 1}. ${title}\n   ×${qty} – ${price}\n`;
       });
     }
   } else if (payload.event === "callback_request_client") {
-    message = `📞 *ЗАПИТ НА ДЗВІНОК*\n\n`;
-    message += `👤 Ім'я: ${payload.name || "—"}\n`;
-    message += `📱 Телефон: \`${payload.phone || "—"}\`\n`;
-    message += `📧 Email: ${payload.email || "—"}\n`;
-    message += `🌐 Сторінка: ${payload.page || "—"}`;
+    message = `📞 <b>ЗАПИТ НА ДЗВІНОК</b>\n\n`;
+    message += `👤 Ім'я: ${escapeHtml(payload.name || "—")}\n`;
+    message += `📱 Телефон: <code>${escapeHtml(payload.phone || "—")}</code>\n`;
+    message += `📧 Email: ${escapeHtml(payload.email || "—")}\n`;
+    message += `🌐 Сторінка: ${escapeHtml(payload.page || "—")}`;
   } else if (payload.event === "order_success_page_hit") {
     const od = payload.orderData || {};
-    message = `✅ *ЗАМОВЛЕННЯ УСПІШНО ОФОРМЛЕНО*\n\n`;
+    message = `✅ <b>ЗАМОВЛЕННЯ УСПІШНО ОФОРМЛЕНО</b>\n\n`;
     
     // Дата
     if (od.date) {
-      message += `📅 *Дата:* ${od.date}\n`;
+      message += `📅 <b>Дата:</b> ${escapeHtml(od.date)}\n`;
     }
     
     // Номер замовлення
     if (od.orderNumber) {
-      message += `🔔 *Замовлення №* \`${od.orderNumber}\`\n\n`;
+      message += `🔔 <b>Замовлення №</b> <code>${escapeHtml(od.orderNumber)}</code>\n\n`;
     }
     
     // Дані користувача
-    message += `*👤 Замовник:*\n`;
+    message += `<b>👤 Замовник:</b>\n`;
     if (od.customerName) {
-      message += `  Ім'я: ${od.customerName}\n`;
+      message += `  Ім'я: ${escapeHtml(od.customerName)}\n`;
     }
     if (od.phone) {
-      message += `  📱 Телефон: \`${od.phone}\`\n`;
+      message += `  📱 Телефон: <code>${escapeHtml(od.phone)}</code>\n`;
     }
     if (od.city) {
-      message += `  📍 Місто: ${od.city}\n`;
+      message += `  📍 Місто: ${escapeHtml(od.city)}\n`;
     }
     if (od.address) {
-      message += `  🏠 Адреса: ${od.address}\n`;
+      message += `  🏠 Адреса: ${escapeHtml(od.address)}\n`;
     }
     
     // Доставка та оплата
-    message += `\n*📦 Деталі замовлення:*\n`;
+    message += `\n<b>📦 Деталі замовлення:</b>\n`;
     if (od.deliveryMethod) {
-      message += `  Доставка: ${od.deliveryMethod}\n`;
+      message += `  Доставка: ${escapeHtml(od.deliveryMethod)}\n`;
     }
     if (od.paymentMethod) {
-      message += `  Оплата: ${od.paymentMethod}\n`;
+      message += `  Оплата: ${escapeHtml(od.paymentMethod)}\n`;
     }
     
-    // ТОВАРИ - красиво!
+    // ТОВАРИ
     if (od.items && od.items.length > 0) {
-      message += `\n*🛍️  Товари:*\n`;
+      message += `\n<b>🛍️ Товари:</b>\n`;
       od.items.forEach((item, idx) => {
-        const name = (item.name || "Товар").substring(0, 70);
-        const pricePerUnit = item.pricePerUnit || "—";
+        const name = escapeHtml((item.name || "Товар").substring(0, 70));
+        const pricePerUnit = escapeHtml(item.pricePerUnit || "—");
         const quantity = item.quantity || "1";
-        const total = item.total || "—";
+        const total = escapeHtml(item.total || "—");
         
         message += `\n${idx + 1}. ${name}\n`;
         message += `   💰 ${pricePerUnit} × ${quantity} = ${total}`;
@@ -142,12 +153,12 @@ app.post("/api/telegram-webhook", async (req, res) => {
     
     // Сума
     if (od.total) {
-      message += `\n*💰 Всього: ${od.total}*\n`;
+      message += `\n<b>💰 Всього: ${escapeHtml(od.total)}</b>\n`;
     }
     
-    message += `\n🌐 [Див. замовлення](${payload.url})`;
+    message += `\n🌐 <a href="${escapeHtml(payload.url)}">Див. замовлення</a>`;
   } else {
-    message = `📌 *${payload.event || "подія"}*\n\`\`\`\n${JSON.stringify(payload, null, 2).substring(0, 300)}\n\`\`\``;
+    message = `📌 <b>${escapeHtml(payload.event || "подія")}</b>\n<code>${escapeHtml(JSON.stringify(payload, null, 2).substring(0, 300))}</code>`;
   }
 
   try {
