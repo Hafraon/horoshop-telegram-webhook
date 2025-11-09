@@ -59,6 +59,11 @@ app.post("/api/telegram-webhook", async (req, res) => {
     message += `📱 Телефон: \`${payload.phone || "—"}\`\n`;
     message += `📧 Email: ${payload.email || "—"}\n`;
     message += `🌐 Сторінка: ${payload.page || "—"}`;
+  } else if (payload.event === "order_success_page_hit") {
+    message = `✅ *ЗАМОВЛЕННЯ УСПІШНО ОФОРМЛЕНО*\n\n`;
+    message += `🌐 URL: [посилання](${payload.url})\n`;
+    message += `📄 Сторінка: ${payload.pageTitle || "Сторінка успіху"}\n`;
+    message += `📨 Джерело: ${payload.ref || "прямо"}`;
   } else {
     message = `📌 *${payload.event || "подія"}*\n\`\`\`\n${JSON.stringify(payload, null, 2).substring(0, 300)}\n\`\`\``;
   }
