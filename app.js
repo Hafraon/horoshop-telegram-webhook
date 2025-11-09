@@ -3,8 +3,11 @@ const app = express();
 
 const SECRET = process.env.SECRET || "default-secret";
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const CHAT_ID = process.env.CHAT_ID;
+// ✅ КІЛЬКА CHAT_ID - розділяємо комою
+const CHAT_IDS = (process.env.CHAT_ID || "").split(",").map(id => id.trim()).filter(id => id);
 const PORT = process.env.PORT || 3000;
+
+console.log(`🚀 Telegram Chat IDs: ${CHAT_IDS.join(", ")}`);
 
 app.use(express.json());
 
@@ -21,8 +24,33 @@ app.use((req, res, next) => {
 });
 
 app.get("/", (req, res) => {
-  res.json({ status: "ok", message: "Telegram webhook сервер працює" });
+  res.json({ status: "ok", message: "Telegram webhook сервер працює", chatIds: CHAT_IDS });
 });
+
+// Функція для відправки в Telegram
+async function sendToTelegram(chatId, message) {
+  const response = await fetch(
+    `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: "Markdown"
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error(`❌ Telegram помилка для ${chatId}:`, error);
+    throw new Error(error);
+  }
+
+  console.log(`✅ Відправлено в Telegram (${chatId})`);
+  return response.json();
+}
 
 app.post("/api/telegram-webhook", async (req, res) => {
   const incomingSecret = req.headers["x-secret"] || req.query.secret;
@@ -123,27 +151,20 @@ app.post("/api/telegram-webhook", async (req, res) => {
   }
 
   try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: CHAT_ID,
-          text: message,
-          parse_mode: "Markdown"
-        })
+    // ✅ ВІДПРАВЛЯЄМО В ВСІ CHAT_ID
+    const results = [];
+    for (const chatId of CHAT_IDS) {
+      try {
+        await sendToTelegram(chatId, message);
+        results.push({ chatId, status: "ok" });
+      } catch (error) {
+        console.error(`❌ Помилка для ${chatId}:`, error.message);
+        results.push({ chatId, status: "error", error: error.message });
       }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("❌ Telegram помилка:", error);
-      return res.status(500).json({ error: "Telegram failed" });
     }
 
-    console.log("✅ Відправлено в Telegram");
-    res.json({ ok: true });
+    console.log("📤 Результати відправки:", results);
+    res.json({ ok: true, sent: results });
   } catch (error) {
     console.error("💥 Помилка:", error.message);
     res.status(500).json({ error: error.message });
@@ -151,5 +172,6 @@ app.post("/api/telegram-webhook", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Запущено на ${PORT}`);
+  console.log(`🚀 Запущено на порту ${PORT}`);
+  console.log(`📨 Слухаємо замовлення для ${CHAT_IDS.length} користувачів`);
 });
